@@ -1,20 +1,10 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const CORS = require("cors");
-require('dotenv').config()
-const knex = require('knex')
-const repository = knex(
-    {
-    client: 'pg',
-    connection: {
-        host : process.env.DB_HOST,
-        port : process.env.DB_PORT,
-        user : process.env.DB_USER,
-        password : process.env.DB_PASSW,
-        database : process.env.DB_NAME,
-    },
-  }
-);
+require('dotenv').config();
+const { repository, knex } = require('./database/repository');
+const students = require('./controller/students');
+const teachers = require('./controller/teachers');
 
 const app = express();
 
@@ -23,76 +13,27 @@ app.listen(8080);
 const middleware = app.use(express.json(), CORS(), (request, response, next) => {
 
     if(request.headers.authorization !== process.env.AUTH){
-        return response.status(400).send({status: false, message: "Unauthorized"});
+        return response.status(400).json({status: false, message: "Unauthorized"});
     }
     next();
 });
 
-const list = app.get("/api/students", (request, response) => {
-    
-    repository.raw("select * from students order by id asc")
-    .then(students => {
-        return response.send(students.rows);
-    });
-});
+app.get("/api/students", (request, response) => { students.list(request, response, repository) });
 
-const retrieve = app.get("/api/students/:id", (request, response) => {
-    const id = request.params.id;
-    
-    repository.raw("select * from students where id = ?", id)
-    .then(resp => {
-        if(resp.rowCount == 0){
-            throw Error;
-        }
-        return response.send(resp.rows);
-    })
-    .catch(error => {
-        return response.status(404).send({status: false, message: "id not found"});
-    });
-});
+app.get("/api/students/:id", (request, response) => { students.retrieve(request, response, repository) });
 
-const create = app.post("/api/students", (request, response) => {
-    const user = request.body;
+app.post("/api/students", (request, response) => { students.create(request, response, repository) });
 
-    repository.raw("insert into students (name, course) values (?, ?) returning id, name, course", [user.name, user.course])
-    .then(resp => {
-        return response.send(resp.rows);
-    }).catch(error => {
-        return response.status(400).send({status: false, message: "missing fields"});
-    });
+app.put("/api/students/:id", (request, response) => { students.update(request, response, repository) });
 
-});
+app.delete("/api/students/:id", (request, response) => { students.remove(request, response, repository) });
 
-const update = app.put("/api/students/:id", (request, response) => {
+app.get("/api/teachers", (request, response) => { teachers.list(request, response, repository) });
 
-    const id = request.params.id;
-    const data = request.body;
+app.get("/api/teachers/:id", (request, response) => { teachers.retrieve(request, response, repository) });
 
-    repository.raw("update students set name = ?, course = ? where id = ? returning id, name, course", [data.name, data.course, id])
-    .then(resp => {
-        if(resp.rowCount == 0){
-            return response.status(404).send({status: false, message: "id not found"});
-        }
-        return response.send(resp.rows);
-    })
-    .catch(error => {
-        return response.status(400).send({status: false, message: "missing fields"});
-    });
+app.post("/api/teachers", (request, response) => { teachers.create(request, response, repository) });
 
-});
+app.put("/api/teachers/:id", (request, response) => { teachers.update(request, response, repository) });
 
-const remove = app.delete("/api/students/:id", (request, response) => {
-    const id = request.params.id;
-
-    repository.raw("delete from students where id = ? returning id, name, course", [id])
-    .then(resp => {
-        if(resp.rows = 0){
-            throw Error;
-        }
-        return response.send(resp.rows);
-    })
-    .catch(error => {
-        return response.status(404).send({status: false, message: "id not found"});
-    });    
-
-});
+app.delete("/api/teachers/:id", (request, response) => { teachers.remove(request, response, repository) });
